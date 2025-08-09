@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Chatbot</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-header">
+            <h1>AI Chatbot</h1>
+        </div>
+        <div class="chat-messages" id="chat-messages">
+            <div class="message bot-message">
+                <div class="message-content">Hello! I'm your AI assistant. How can I help you today?</div>
+            </div>
+        </div>
+        <div class="chat-input-container">
+            <input type="text" id="user-input" placeholder="Type your message here..." autofocus>
+            <button id="send-button">Send</button>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const chatMessages = document.getElementById('chat-messages');
+            const userInput = document.getElementById('user-input');
+            const sendButton = document.getElementById('send-button');
+
+            // Function to add a message to the chat
+            function addMessage(message, isUser) {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `message ${isUser ? 'user-message' : 'bot-message'}`;
+                
+                const messageContent = document.createElement('div');
+                messageContent.className = 'message-content';
+                
+                if (isUser) {
+                    // For user messages, display immediately
+                    messageContent.textContent = message;
+                } else {
+                    // For bot messages, create a typing effect
+                    messageContent.textContent = '';
+                    // Start with empty content, will be filled character by character
+                }
+                
+                messageDiv.appendChild(messageContent);
+                chatMessages.appendChild(messageDiv);
+                
+                // Scroll to the bottom of the chat
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+                
+                // Return the message content element for typing effect
+                return messageContent;
+            }
+
+            // Function to send a message to the backend
+            async function sendMessage() {
+                const message = userInput.value.trim();
+                if (!message) return;
+
+                // Add user message to chat
+                addMessage(message, true);
+                
+                // Clear input field
+                userInput.value = '';
+                
+                // Show loading indicator
+                const loadingDiv = document.createElement('div');
+                loadingDiv.className = 'message bot-message loading';
+                loadingDiv.innerHTML = '<div class="message-content">Thinking...</div>';
+                chatMessages.appendChild(loadingDiv);
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+                
+                try {
+                    // Send message to backend
+                    const response = await fetch('/ask', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ message })
+                    });
+                    
+                    const data = await response.json();
+                    
+                    // Remove loading indicator
+                    chatMessages.removeChild(loadingDiv);
+                    
+                    if (data.error) {
+                        const errorContent = addMessage(`Error: ${data.error}`, false);
+                        // No typing effect for errors, set content directly
+                        errorContent.textContent = `Error: ${data.error}`;
+                    } else {
+                        // Add empty bot message and get the content element
+                        const botContent = addMessage('', false);
+                        
+                        // Implement typing effect
+                        const text = data.response;
+                        let index = 0;
+                        const typingSpeed = 10; // milliseconds per character
+                        
+                        function typeNextCharacter() {
+                            if (index < text.length) {
+                                botContent.textContent += text.charAt(index);
+                                index++;
+                                chatMessages.scrollTop = chatMessages.scrollHeight;
+                                setTimeout(typeNextCharacter, typingSpeed);
+                            }
+                        }
+                        
+                        // Start typing effect
+                        typeNextCharacter();
+                    }
+                } catch (error) {
+                    // Remove loading indicator
+                    chatMessages.removeChild(loadingDiv);
+                    const errorContent = addMessage('', false);
+                    errorContent.textContent = `Error: Could not connect to the server. ${error.message}`;
+                }
+            }
+
+            // Event listeners
+            sendButton.addEventListener('click', sendMessage);
+            
+            userInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    sendMessage();
+                }
+            });
+        });
+    </script>
+</body>
+</html>
